@@ -14,6 +14,7 @@ variables:
   FeedUrl: '$(ArtifactFeedUrl)'             
   ModuleSearchPattern: '*.psd1'
   PesterPath: ''          
+  CoverageOutputDir: '$(Build.SourcesDirectory)/TestResults/Coverage'
 
 pool:
   vmImage: 'windows-latest'
@@ -38,9 +39,18 @@ stages:
                 -RepoRoot "$(Build.SourcesDirectory)"
                 -ModuleSearchPattern "$(ModuleSearchPattern)"
                 -RunTests
+                -CodeCoverage
                 -Version "$(BuildVersion)"
                 -PesterPath "$(PesterPath)"
               pwsh: true
+
+          - task: PublishBuildArtifacts@1
+            displayName: Publish Coverage Artifacts
+            condition: always()
+            inputs:
+              PathtoPublish: '$(CoverageOutputDir)'
+              ArtifactName: 'coverage'
+              publishLocation: 'Container'
 
   - stage: Publish
     displayName: Publish Modules
@@ -67,3 +77,68 @@ stages:
                 -FeedName "$(FeedName)"
                 -FeedUrl "$(FeedUrl)"
               pwsh: true
+
+  - stage: Package
+    displayName: NuGet Pack
+    dependsOn: CI
+    jobs:
+      - job: pack
+        displayName: Pack nuspec(s)
+        pool:
+          vmImage: 'windows-latest'
+        steps:
+          - checkout: self
+
+          - task: PowerShell@2
+            displayName: Generate nuspec files for modules
+            inputs:
+              targetType: filePath
+              filePath: build/generate-nuspecs.ps1
+              arguments: >-
+                -RepoRoot "$(Build.SourcesDirectory)"
+                -ModuleSearchPattern "$(ModuleSearchPattern)"
+            pwsh: true
+
+          - task: NuGetToolInstaller@1
+            displayName: Use NuGet 6.x
+            inputs:
+              versionSpec: '6.x'
+
+          - task: NuGetCommand@2
+            displayName: NuGet pack all nuspecs
+            inputs:
+              command: 'pack'
+              packagesToPack: '$(Build.SourcesDirectory)/out/nuspec/*.nuspec'
+              versioningScheme: 'byEnvVar'
+              versionEnvVar: 'BuildVersion'
+              buildProperties: 'VERSIONHERE=$(BuildVersion)'
+
+          - task: PublishBuildArtifacts@1
+            displayName: Publish NuGet Packages
+            inputs:
+              PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+              ArtifactName: 'NuGetPackage'
+              publishLocation: 'Container'
+
+  - stage: Deploy
+    displayName: Push Packages
+    dependsOn: Package
+    condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/')))
+    jobs:
+      - job: nuget_push
+        displayName: Push to internal feed
+        steps:
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              buildType: 'current'
+              artifactName: 'NuGetPackage'
+              itemPattern: '**'
+              targetPath: '$(Pipeline.Workspace)'
+
+          - task: NuGetCommand@2
+            displayName: NuGet push
+            inputs:
+              command: 'push'
+              packagesToPush: '$(Pipeline.Workspace)/**/*.nupkg'
+              nuGetFeedType: 'internal'
+              publishVstsFeed: '$(FeedName)'
