@@ -11,7 +11,6 @@ pr:
 variables:
   BuildVersion: "$(Build.BuildNumber)"
   FeedName: "$(ArtifactFeedName)"
-  FeedUrl: "$(ArtifactFeedUrl)"
   ModuleSearchPattern: "*.psd1"
   PesterPath: ""
   CoverageOutputDir: "$(Build.SourcesDirectory)/TestResults/Coverage"
@@ -40,6 +39,7 @@ stages:
                 -ModuleSearchPattern "$(ModuleSearchPattern)"
                 -RunTests
                 -CodeCoverage
+                -CoverageOutputDir "$(CoverageOutputDir)"
                 -Version "$(BuildVersion)"
                 -PesterPath "$(PesterPath)"
               pwsh: true
@@ -51,32 +51,6 @@ stages:
               PathtoPublish: "$(CoverageOutputDir)"
               ArtifactName: "coverage"
               publishLocation: "Container"
-
-  - stage: Publish
-    displayName: Publish Modules
-    dependsOn: CI
-    condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/')))
-    jobs:
-      - job: publish
-        displayName: Publish to Azure Artifacts
-        steps:
-          - checkout: self
-
-          - task: PowerShell@2
-            displayName: Discover + Build + Publish
-            env:
-              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-            inputs:
-              targetType: filePath
-              filePath: build/ci-discover-and-build.ps1
-              arguments: >-
-                -RepoRoot "$(Build.SourcesDirectory)"
-                -ModuleSearchPattern "$(ModuleSearchPattern)"
-                -Version "$(BuildVersion)"
-                -Publish
-                -FeedName "$(FeedName)"
-                -FeedUrl "$(FeedUrl)"
-              pwsh: true
 
   - stage: Package
     displayName: NuGet Pack
