@@ -52,6 +52,15 @@ stages:
               ArtifactName: "coverage"
               publishLocation: "Container"
 
+          - task: PublishCodeCoverageResults@1
+            displayName: Publish Code Coverage (JaCoCo)
+            condition: always()
+            inputs:
+              codeCoverageTool: JaCoCo
+              summaryFileLocation: '$(CoverageOutputDir)/coverage.xml'
+              reportDirectory: '$(CoverageOutputDir)'
+              failIfCoverageEmpty: false
+
   - stage: Package
     displayName: NuGet Pack
     dependsOn: CI

@@ -113,6 +113,10 @@ if ($RunTests) {
             $cfg.Output.Verbosity = 'Normal'
             $cfg.CodeCoverage.Enabled = $true
             $cfg.CodeCoverage.Path = $CoveragePaths
+            # Emit JaCoCo XML to a predictable path so CI can publish it
+            $cfg.CodeCoverage.OutputFormat = 'JaCoCo'
+            $cfg.CodeCoverage.OutputPath = (Join-Path $CoverageOutputDir 'coverage.xml')
+            $cfg.CodeCoverage.OutputEncoding = 'UTF8'
 
             $result = Invoke-Pester -Configuration $cfg
 
@@ -121,12 +125,35 @@ if ($RunTests) {
                 $summaryTxt = Join-Path $CoverageOutputDir 'summary.txt'
                 $summaryJson = Join-Path $CoverageOutputDir 'pester-coverage.json'
                 $percentTxt = Join-Path $CoverageOutputDir 'coveragePercent.txt'
+                $indexHtml = Join-Path $CoverageOutputDir 'index.html'
 
                 $percent = $null
                 if ($result -and $result.CodeCoverage) { $percent = $result.CodeCoverage.CoveragePercent }
                 if ($null -ne $percent) { Set-Content -Path $percentTxt -Value ([string]$percent) -Force }
                 ($result.CodeCoverage | Out-String) | Set-Content -Path $summaryTxt -Force
                 $result.CodeCoverage | ConvertTo-Json -Depth 6 | Set-Content -Path $summaryJson -Force
+
+                # Generate a lightweight HTML report (so the Code Coverage tab can render HTML)
+                $html = @(
+                    '<!doctype html>'
+                    '<html lang="en">'
+                    '<head><meta charset="utf-8"/>'
+                    '<title>Pester Coverage Report</title>'
+                    '<style>body{font-family:Segoe UI,Tahoma,Arial,sans-serif;margin:20px} .kpi{font-size:48px;font-weight:600} .muted{color:#666}</style>'
+                    '</head>'
+                    '<body>'
+                    '  <h1>Pester Coverage</h1>'
+                    '  <div class="kpi">' + ($percent ?? '0') + '%</div>'
+                    '  <p class="muted">Summary generated ' + (Get-Date) + '</p>'
+                    '  <h2>Artifacts</h2>'
+                    '  <ul>'
+                    '    <li><a href="pester-coverage.json">pester-coverage.json</a></li>'
+                    '    <li><a href="summary.txt">summary.txt</a></li>'
+                    '    <li><a href="coveragePercent.txt">coveragePercent.txt</a></li>'
+                    '  </ul>'
+                    '</body></html>'
+                ) -join [Environment]::NewLine
+                Set-Content -Path $indexHtml -Value $html -Force -Encoding UTF8
             } catch {
                 Write-Warning "Failed to write coverage artifacts: $_"
             }
