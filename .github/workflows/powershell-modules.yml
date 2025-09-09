@@ -51,6 +51,16 @@ jobs:
           name: coverage
           path: TestResults/Coverage
 
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          files: TestResults/Coverage/coverage.xml
+          flags: powershell
+          name: pester
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}   
+          
   package:
     name: NuGet Pack
     needs: ci
