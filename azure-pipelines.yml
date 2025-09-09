@@ -97,7 +97,7 @@ stages:
               arguments: >-
                 -RepoRoot "$(Build.SourcesDirectory)"
                 -ModuleSearchPattern "$(ModuleSearchPattern)"
-            pwsh: true
+              pwsh: true
 
           - task: NuGetToolInstaller@1
             displayName: Use NuGet 6.x
