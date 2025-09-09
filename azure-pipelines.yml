@@ -10,8 +10,8 @@ pr:
 
 variables:
   BuildVersion: '$(Build.BuildNumber)'
-  FeedName: ''            
-  FeedUrl: ''             
+  FeedName: '$(FeedName)'            
+  FeedUrl: '$(FeedUrl)'             
   ModuleSearchPattern: '*.psd1'
   PesterPath: ''          
 
