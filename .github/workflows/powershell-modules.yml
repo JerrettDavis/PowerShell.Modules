@@ -1,0 +1,128 @@
+name: PowerShell Modules CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  ci:
+    name: Build and Test
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set build version
+        id: version
+        shell: pwsh
+        run: |
+          $date = Get-Date -Format 'yyyyMMdd'
+          $run  = "${{ github.run_number }}"
+          $version = "$date.$run.0"
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "BUILD_VERSION=$version" >> $env:GITHUB_ENV
+
+      - name: Install Pester 5
+        shell: pwsh
+        run: |
+          Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted
+          Install-Module Pester -MinimumVersion 5.5.0 -Scope CurrentUser -Force
+
+      - name: Build + Test + Coverage
+        shell: pwsh
+        run: |
+          ./build/ci-discover-and-build.ps1 `
+            -RepoRoot "${{ github.workspace }}" `
+            -ModuleSearchPattern "*.psd1" `
+            -RunTests `
+            -CodeCoverage `
+            -CoverageOutputDir "${{ github.workspace }}/TestResults/Coverage" `
+            -Version "${{ steps.version.outputs.version }}"
+
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: TestResults/Coverage
+
+  package:
+    name: NuGet Pack
+    needs: ci
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Set build version
+        id: version
+        shell: pwsh
+        run: |
+          $date = Get-Date -Format 'yyyyMMdd'
+          $run  = "${{ github.run_number }}"
+          $version = "$date.$run.0"
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "BUILD_VERSION=$version" >> $env:GITHUB_ENV
+
+      - name: Generate nuspecs
+        shell: pwsh
+        run: |
+          ./build/generate-nuspecs.ps1 `
+            -RepoRoot "${{ github.workspace }}" `
+            -ModuleSearchPattern "*.psd1"
+
+      - name: NuGet pack
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path "${{ github.workspace }}/out/packages" -Force | Out-Null
+          Get-ChildItem "${{ github.workspace }}/out/nuspec/*.nuspec" | ForEach-Object {
+            & nuget pack $_.FullName -Version "${{ steps.version.outputs.version }}" -OutputDirectory "${{ github.workspace }}/out/packages"
+          }
+
+      - name: Upload NuGet packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: NuGetPackage
+          path: out/packages/*.nupkg
+
+  publish:
+    name: Publish to GitHub Packages
+    needs: package
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Download NuGet packages
+        uses: actions/download-artifact@v4
+        with:
+          name: NuGetPackage
+          path: packages
+
+      - name: Configure NuGet source (GitHub Packages)
+        shell: pwsh
+        env:
+          OWNER: ${{ github.repository_owner }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          nuget sources Remove -Name github -NonInteractive -ErrorAction SilentlyContinue
+          nuget sources Add -Name github -Source "https://nuget.pkg.github.com/$env:OWNER/index.json" -Username "$env:OWNER" -Password "$env:TOKEN" -StorePasswordInClearText -NonInteractive
+          nuget sources List
+
+      - name: Push packages to GitHub Packages
+        shell: pwsh
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          Get-ChildItem 'packages/*.nupkg' | ForEach-Object {
+            nuget push $_.FullName -Source github -ApiKey $env:TOKEN -NonInteractive -Verbosity detailed
+          }

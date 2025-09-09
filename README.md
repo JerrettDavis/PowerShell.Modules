@@ -96,7 +96,10 @@ FunctionsToExport = @('<FunctionsToExport>')
 - Pipeline: `azure-pipelines.yml`
 - Helper script: `build/ci-discover-and-build.ps1`
 
-The CI stage discovers modules (by `*.psd1`), builds them (per‑module `build/build.ps1` if present), and runs tests. The Publish stage (main/release branches) builds and publishes modules to an Azure Artifacts feed.
+Three stages:
+- CI: discover modules (by `*.psd1`), build, run tests, and collect code coverage (artifacts published as `coverage`).
+- Package: generate `.nuspec` per module and `nuget pack` into `.nupkg` (artifact published as `NuGetPackage`).
+- Deploy (main/release only): download `NuGetPackage` and `nuget push` to Azure Artifacts internal feed.
 
 Key parameters/variables:
 
@@ -109,6 +112,7 @@ Requirements for publish:
 
 - Enable “Allow scripts to access OAuth token” on the pipeline.
 - Pass `$(System.AccessToken)` to the script environment (the pipeline YAML already wires this).
+- Grant your pipeline’s Build Service identity Contributor on the target feed (ReadPackages + WritePackages). If the feed is project‑scoped, you may need `ProjectName Build Service (ProjectName)`; for cross‑project, add `Project Collection Build Service (OrganizationName)`.
 
 Local CI helper usage:
 
@@ -118,6 +122,24 @@ Local CI helper usage:
 
 # Build and publish (requires Azure DevOps build env or PAT wiring)
 ./build/ci-discover-and-build.ps1 -RepoRoot (Get-Location).Path -Publish -FeedName 'YourFeed' -Version '1.2.3'
+```
+
+### CI/CD (GitHub Actions)
+
+- Workflow: `.github/workflows/powershell-modules.yml`
+
+Jobs:
+- Build and Test (ci): discover, build, test, and collect coverage (uploads `coverage` artifact).
+- NuGet Pack (package): generates nuspecs and packs `.nupkg` (uploads `NuGetPackage` artifact).
+- Publish (publish, main branch only): pushes `.nupkg` to GitHub Packages NuGet registry using `GITHUB_TOKEN`.
+
+GitHub Packages NuGet source URL: `https://nuget.pkg.github.com/<owner>/index.json`
+
+Optional local setup to test pushing to GH Packages:
+
+```powershell
+# Configure a NuGet source (uses a PAT with packages:write)
+nuget sources Add -Name github -Source "https://nuget.pkg.github.com/<owner>/index.json" -Username "<owner>" -Password "<TOKEN>" -StorePasswordInClearText -NonInteractive
 ```
 
 ### Code coverage
@@ -151,8 +173,13 @@ PowerShell.Modules/
 │  └─ Tests/                           # Pester tests for the Xml module
 ├─ build/
 │  ├─ build.ps1                        # Manifest updater (version/exports)
-│  └─ Tests/                           # Pester tests for build/CI
-├─ azure-pipelines.yml                 # CI/CD pipeline
+│  ├─ ci-discover-and-build.ps1        # CI helper (discover/build/test/publish)
+│  ├─ generate-nuspecs.ps1             # Emit nuspec per module
+│  └─ Tests/                           # Pester tests for build/CI/nuspecs
+├─ .github/
+│  └─ workflows/
+│     └─ powershell-modules.yml        # GitHub Actions CI (build/test/pack/publish)
+├─ azure-pipelines.yml                 # Azure Pipelines (CI/Package/Deploy)
 └─ Run-Tests.ps1                       # Root test runner
 ```
 
