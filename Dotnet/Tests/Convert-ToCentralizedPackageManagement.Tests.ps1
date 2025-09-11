@@ -3,7 +3,7 @@ Describe 'Convert-ToCentralizedPackageManagement (psm1 import + behaviors)' -Tag
   BeforeAll {
     # Resolve and import module one level up from /Tests
     $projectRoot = Split-Path -Parent $PSScriptRoot
-    $psmPath     = Join-Path $projectRoot 'JerrettDavis.Dotnet.psm1'
+    $psmPath = Join-Path $projectRoot 'JerrettDavis.Dotnet.psm1'
     if (-not (Test-Path -Path $psmPath)) {
       throw "Could not find module psm1 at '$psmPath'. Adjust the relative path if your module moved."
     }
@@ -21,15 +21,17 @@ Describe 'Convert-ToCentralizedPackageManagement (psm1 import + behaviors)' -Tag
   Context 'End-to-end migration in TestDrive' {
     BeforeEach {
       # Build all paths under $TestDrive
-      $srcA           = Join-Path $TestDrive 'src\ProjA'
-      $srcB           = Join-Path $TestDrive 'src\ProjB'
-      $srcC           = Join-Path $TestDrive 'tools\ProjC'
-      $ProjAPath      = Join-Path $srcA 'ProjA.csproj'
-      $ProjBPath      = Join-Path $srcB 'ProjB.csproj'
-      $ProjCPath      = Join-Path $srcC 'ProjC.csproj'
-      $SolutionPath   = Join-Path $TestDrive 'MySolution.sln'
+      # Ensure a local $Version exists to satisfy StrictMode when any interpolations occur in strings
+      Set-Variable -Name Version -Value $null -Scope Local
+      $srcA = Join-Path $TestDrive 'src\ProjA'
+      $srcB = Join-Path $TestDrive 'src\ProjB'
+      $srcC = Join-Path $TestDrive 'tools\ProjC'
+      $ProjAPath = Join-Path $srcA 'ProjA.csproj'
+      $ProjBPath = Join-Path $srcB 'ProjB.csproj'
+      $ProjCPath = Join-Path $srcC 'ProjC.csproj'
+      $SolutionPath = Join-Path $TestDrive 'MySolution.sln'
       $BuildPropsPath = Join-Path $TestDrive 'Directory.Build.props'
-      $PackagesProps  = Join-Path $TestDrive 'Directory.Packages.props'
+      $PackagesProps = Join-Path $TestDrive 'Directory.Packages.props'
 
       # Ensure directories
       New-Item -ItemType Directory -Path $srcA -Force | Out-Null
@@ -95,7 +97,7 @@ EndGlobal
       Set-Content -LiteralPath $SolutionPath -Value $sln -Encoding UTF8
 
       # Expose to Its
-      Set-Variable SolutionPath,$BuildPropsPath,$PackagesProps,$ProjAPath,$ProjBPath,$ProjCPath -Option None -Scope Local
+      Set-Variable SolutionPath, $BuildPropsPath, $PackagesProps, $ProjAPath, $ProjBPath, $ProjCPath -Option None -Scope Local
     }
 
     It 'Creates props files; centralizes latest versions; strips versions in projects' {
@@ -105,7 +107,7 @@ EndGlobal
       $PackagesProps  | Should -Exist
 
       (Get-Content -Raw -LiteralPath $BuildPropsPath) |
-        Should -Match '<ManagePackageVersionsCentrally>\s*true\s*</ManagePackageVersionsCentrally>'
+      Should -Match '<ManagePackageVersionsCentrally>\s*true\s*</ManagePackageVersionsCentrally>'
 
       $pp = Get-Content -Raw -LiteralPath $PackagesProps
       $pp | Should -Match '<PackageVersion Include="Newtonsoft\.Json" Version="13\.0\.2" />'
@@ -133,18 +135,18 @@ EndGlobal
       Convert-ToCentralizedPackageManagement -Solution $SolutionPath -BuildPropsPath $BuildPropsPath -PackagesPropsPath $PackagesProps -Verbose | Out-Null
 
       $pp1 = Get-Content -Raw -LiteralPath $PackagesProps
-      $a1  = Get-Content -Raw -LiteralPath $ProjAPath
-      $b1  = Get-Content -Raw -LiteralPath $ProjBPath
-      $c1  = Get-Content -Raw -LiteralPath $ProjCPath
+      $a1 = Get-Content -Raw -LiteralPath $ProjAPath
+      $b1 = Get-Content -Raw -LiteralPath $ProjBPath
+      $c1 = Get-Content -Raw -LiteralPath $ProjCPath
 
       Start-Sleep -Milliseconds 50
 
       Convert-ToCentralizedPackageManagement -Solution $SolutionPath -BuildPropsPath $BuildPropsPath -PackagesPropsPath $PackagesProps -Verbose | Out-Null
 
       $pp2 = Get-Content -Raw -LiteralPath $PackagesProps
-      $a2  = Get-Content -Raw -LiteralPath $ProjAPath
-      $b2  = Get-Content -Raw -LiteralPath $ProjBPath
-      $c2  = Get-Content -Raw -LiteralPath $ProjCPath
+      $a2 = Get-Content -Raw -LiteralPath $ProjAPath
+      $b2 = Get-Content -Raw -LiteralPath $ProjBPath
+      $c2 = Get-Content -Raw -LiteralPath $ProjCPath
 
       $pp2 | Should -Be $pp1
       $a2  | Should -Be $a1
@@ -154,7 +156,7 @@ EndGlobal
 
     It 'Honors -WhatIf (no files are created or changed)' {
       # Use unique output paths so prior tests can't create these
-      $whatIfBuild    = Join-Path $TestDrive 'whatif\Directory.Build.props'
+      $whatIfBuild = Join-Path $TestDrive 'whatif\Directory.Build.props'
       $whatIfPackages = Join-Path $TestDrive 'whatif\Directory.Packages.props'
       New-Item -ItemType Directory -Path (Split-Path $whatIfBuild -Parent) -Force | Out-Null
 
@@ -192,16 +194,16 @@ EndGlobal
       $pp = Get-Content -Raw -LiteralPath $PackagesProps
       $idxNewton = $pp.IndexOf('Include="Newtonsoft.Json"')
       $idxFluent = $pp.IndexOf('Include="FluentAssertions"')
-      $idxXunit  = $pp.IndexOf('Include="xunit"')
+      $idxXunit = $pp.IndexOf('Include="xunit"')
 
       ($idxNewton -ge 0) | Should -BeTrue
       ($idxFluent -ge 0) | Should -BeTrue
-      ($idxXunit  -ge 0) | Should -BeTrue
+      ($idxXunit -ge 0) | Should -BeTrue
       ($idxNewton -lt $idxFluent) | Should -BeTrue
     }
 
     It 'Allows custom paths for props files' {
-      $customBuild    = Join-Path $TestDrive 'eng\custom\Build.props'
+      $customBuild = Join-Path $TestDrive 'eng\custom\Build.props'
       $customPackages = Join-Path $TestDrive 'eng\custom\Packages.props'
       New-Item -ItemType Directory -Path (Split-Path $customBuild -Parent) -Force | Out-Null
 
@@ -213,8 +215,8 @@ EndGlobal
 
     It 'Handles projects already versionless without reintroducing versions' {
       $content = (Get-Content -Raw -LiteralPath $ProjAPath) `
-        -replace ' Version="[^"]+"','' `
-        -replace '<Version>[^<]+</Version>',''
+        -replace ' Version="[^"]+"', '' `
+        -replace '<Version>[^<]+</Version>', ''
       Set-Content -LiteralPath $ProjAPath -Value $content -Encoding UTF8
 
       Convert-ToCentralizedPackageManagement -Solution $SolutionPath -BuildPropsPath $BuildPropsPath -PackagesPropsPath $PackagesProps -Verbose | Out-Null
@@ -259,12 +261,12 @@ EndGlobal
     }
 
     It 'Handles csproj with default XML namespace (xmlns) via local-name() XPath' {
-      $nsDir   = Join-Path $TestDrive 'ns\ProjNs'
+      $nsDir = Join-Path $TestDrive 'ns\ProjNs'
       New-Item -ItemType Directory -Path $nsDir -Force | Out-Null
-      $nsProj  = Join-Path $nsDir 'ProjNs.csproj'
-      $nsSln   = Join-Path $TestDrive 'Ns.sln'
+      $nsProj = Join-Path $nsDir 'ProjNs.csproj'
+      $nsSln = Join-Path $TestDrive 'Ns.sln'
       $nsBuild = Join-Path $TestDrive 'Directory.Build.props'
-      $nsPack  = Join-Path $TestDrive 'Directory.Packages.props'
+      $nsPack = Join-Path $TestDrive 'Directory.Packages.props'
 
       Set-Content -LiteralPath $nsProj -Value @'
 <Project Sdk="Microsoft.NET.Sdk" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
