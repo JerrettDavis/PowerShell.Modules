@@ -15,7 +15,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set build version
         id: version
@@ -46,14 +46,14 @@ jobs:
 
       - name: Upload coverage artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage
           path: TestResults/Coverage
 
       - name: Upload coverage to Codecov
         if: always()
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         with:
           files: TestResults/Coverage/coverage.xml
           flags: powershell
@@ -67,10 +67,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Use NuGet
-        uses: NuGet/setup-nuget@v2
+        uses: NuGet/setup-nuget@v4
 
       - name: Set build version
         id: version
@@ -98,7 +98,7 @@ jobs:
           }
 
       - name: Upload NuGet packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: NuGetPackage
           path: out/packages/*.nupkg
@@ -113,7 +113,7 @@ jobs:
       packages: write
     steps:
       - name: Download NuGet packages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: NuGetPackage
           path: packages
